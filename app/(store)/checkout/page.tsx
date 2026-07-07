@@ -50,61 +50,130 @@ export default function CheckoutPage() {
     if (valid) setStep('review');
   };
 
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
   const onSubmit = async (data: CheckoutFormValues) => {
     setLoading(true);
+    setPaymentError(null);
     try {
       if (data.payment_method === 'razorpay') {
-        // Create Razorpay order
+        const orderTotal = total();
+
+        // Guard: Razorpay minimum is ₹1 (100 paise)
+        if (orderTotal < 1) {
+          setPaymentError('Order total must be at least ₹1 to pay online.');
+          setLoading(false);
+          return;
+        }
+
+        // Step 1: Create Razorpay order on backend
         const res = await fetch('/api/razorpay/create-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: total(), address: data.address }),
+          body: JSON.stringify({ amount: orderTotal }),
         });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to create payment order. Please try again.');
+        }
+
         const order = await res.json();
 
-        // Load Razorpay
-        const razorpay = new (window as any).Razorpay({
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        // Step 2: Open Razorpay Standard Checkout modal
+        const razorpayOptions = {
+          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, // NEXT_PUBLIC_ is safe on client
           amount: order.amount,
-          currency: 'INR',
+          currency: order.currency || 'INR',
           order_id: order.id,
           name: 'Imperial Fashion Groups',
-          description: 'Fashion Purchase',
-          image: '/logo.png',
+          description: `Purchase – ${items.length} item${items.length > 1 ? 's' : ''}`,
+          image: '/icons/razorpay.svg',
           prefill: {
-            name: data.address.full_name,
-            contact: data.address.phone,
+            name:    data.address.full_name,
+            contact: `+91${data.address.phone}`,
+          },
+          notes: {
+            shipping_address: `${data.address.address_line1}, ${data.address.city}, ${data.address.state} - ${data.address.pincode}`,
+            gst_number:       '22ASVPC0275C1Z4',
           },
           theme: { color: '#C9A84C' },
-          handler: async (response: any) => {
-            await fetch('/api/razorpay/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...response, orderData: data, items: items }),
-            });
-            clearCart();
-            window.location.href = '/account/orders?success=true';
+
+          // Step 3: On payment success — verify signature on backend
+          handler: async (response: {
+            razorpay_payment_id: string;
+            razorpay_order_id:   string;
+            razorpay_signature:  string;
+          }) => {
+            try {
+              const verifyRes = await fetch('/api/razorpay/verify', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id:   response.razorpay_order_id,
+                  razorpay_signature:  response.razorpay_signature,
+                  orderData:           { ...data, email: '' },
+                  items,
+                }),
+              });
+
+              const verifyData = await verifyRes.json();
+
+              if (!verifyRes.ok) {
+                throw new Error(verifyData.error || 'Payment verification failed.');
+              }
+
+              clearCart();
+              window.location.href = `/account/orders?success=true&order=${verifyData.order_number}`;
+            } catch (err: any) {
+              setPaymentError(err.message || 'Payment verified but order could not be saved. Please contact support.');
+              setLoading(false);
+            }
           },
+
+          modal: {
+            // User closed the payment modal without paying
+            ondismiss: () => {
+              setPaymentError('Payment was cancelled. Your cart is still saved — try again when ready.');
+              setLoading(false);
+            },
+          },
+        };
+
+        const razorpayInstance = new (window as any).Razorpay(razorpayOptions);
+
+        // Handle payment failure events from Razorpay
+        razorpayInstance.on('payment.failed', (response: any) => {
+          const reason = response?.error?.description || response?.error?.reason || 'Payment failed.';
+          setPaymentError(`Payment failed: ${reason}. Please try a different payment method.`);
+          setLoading(false);
         });
-        razorpay.open();
+
+        razorpayInstance.open();
+        // Don't call setLoading(false) here — loader stays until handler/dismiss/failure fires
+
       } else {
         // COD order
         const res = await fetch('/api/orders', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...data, items, payment_method: 'cod' }),
+          body:    JSON.stringify({ ...data, items, payment_method: 'cod' }),
         });
         if (res.ok) {
           clearCart();
           window.location.href = '/account/orders?success=true';
+        } else {
+          const err = await res.json();
+          throw new Error(err.error || 'Could not place COD order. Please try again.');
         }
       }
-    } catch (err) {
-      console.error('Checkout error:', err);
-    } finally {
+    } catch (err: any) {
+      setPaymentError(err.message || 'Something went wrong. Please try again.');
       setLoading(false);
     }
   };
+
 
   const currentStepIndex = STEPS.findIndex(s => s.id === step);
 
@@ -345,6 +414,17 @@ export default function CheckoutPage() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Payment Error Banner */}
+                    {paymentError && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 text-sm">
+                        <span className="text-red-500 text-lg leading-none mt-0.5">⚠</span>
+                        <div>
+                          <p className="font-semibold text-red-700 mb-0.5">Payment Issue</p>
+                          <p className="text-red-600">{paymentError}</p>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex gap-3">
                       <button type="button" onClick={() => setStep('payment')} className="btn-secondary flex-1 py-4">

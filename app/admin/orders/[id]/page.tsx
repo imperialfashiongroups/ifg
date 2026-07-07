@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, use } from 'react';
 import Link from 'next/link';
 import { Package, ArrowLeft, CheckCircle, Truck, MapPin, Mail, Phone, Clock, ShieldCheck } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 
-export default function AdminOrderDetailsPage({ params }: { params: { id: string } }) {
+export default function AdminOrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const [status, setStatus] = useState('processing');
   const [saved, setSaved] = useState(false);
 
@@ -24,7 +25,7 @@ export default function AdminOrderDetailsPage({ params }: { params: { id: string
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              Order Details: <span className="font-mono text-gold-600">#{params.id}</span>
+              Order Details: <span className="font-mono text-gold-600">#{id}</span>
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">Placed on 14 Jan 2025 · Paid via Razorpay UPI</p>
           </div>

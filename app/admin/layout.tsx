@@ -2,6 +2,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { LayoutDashboard, ShoppingBag, Package, Users, RefreshCw, Ticket, Image as ImageIcon } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';   // Don't cache admin pages
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: 'Admin — Imperial Fashion Groups',
   robots: { index: false },

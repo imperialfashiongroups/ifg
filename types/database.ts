@@ -66,9 +66,9 @@ export interface Product {
   created_at: string;
   updated_at: string;
   // Relations
-  category?: Category;
-  variants?: ProductVariant[];
-  images?: ProductImage[];
+  categories?: Category;
+  product_variants?: ProductVariant[];
+  product_images?: ProductImage[];
   reviews?: Review[];
 }
 

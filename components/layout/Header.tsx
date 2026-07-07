@@ -71,9 +71,11 @@ export default function Header() {
   const { openCart, openMobileNav } = useUIStore();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 60);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -99,93 +101,89 @@ export default function Header() {
 
       {/* Main Header */}
       <div className="section">
-        <div className="flex items-center justify-between h-16 lg:h-20">
-          {/* Mobile Menu Button */}
+        <div className="flex items-center justify-between">
+          
+          {/* Mobile Menu Toggle */}
           <button
             onClick={openMobileNav}
-            className="lg:hidden text-white p-2 hover:text-gold-400 transition-colors"
-            aria-label="Open menu"
+            className="lg:hidden p-2 -ml-2 text-gray-300 hover:text-gold-400"
+            aria-label="Menu"
           >
             <Menu className="w-6 h-6" />
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex flex-col items-center">
-            <span className="text-gold-gradient font-display text-xl lg:text-2xl font-black tracking-widest uppercase">
-              Imperial
-            </span>
-            <span className="text-white text-[9px] tracking-[0.3em] uppercase font-light">
-              Fashion Groups
-            </span>
+          <Link
+            href="/"
+            className="flex-shrink-0 flex items-center lg:w-[200px]"
+            onClick={() => setActiveMenu(null)}
+          >
+            <div className="text-xl md:text-2xl font-bold tracking-widest text-gold-400 font-serif">
+              IMPERIAL
+            </div>
           </Link>
 
           {/* Desktop Navigation */}
-          <nav
-            className="hidden lg:flex items-center gap-1"
-            ref={menuRef}
-            onMouseLeave={() => setActiveMenu(null)}
-          >
-            {NAV_CATEGORIES.map(cat => (
-              <div
-                key={cat.label}
-                className="relative"
-                onMouseEnter={() => setActiveMenu(cat.label)}
-              >
-                <Link
-                  href={cat.href}
-                  className={cn(
-                    'flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                    'text-gray-300 hover:text-gold-400'
-                  )}
+          <nav className="hidden lg:flex items-center justify-center flex-1 mx-8">
+            <div className="flex items-center gap-8 xl:gap-12" ref={menuRef}>
+              {NAV_CATEGORIES.map((category) => (
+                <div
+                  key={category.label}
+                  className="relative group"
+                  onMouseEnter={() => setActiveMenu(category.label)}
+                  onMouseLeave={() => setActiveMenu(null)}
                 >
-                  {cat.label}
-                  {cat.subcategories.length > 0 && (
-                    <ChevronDown className={cn(
-                      'w-3.5 h-3.5 transition-transform duration-200',
-                      activeMenu === cat.label && 'rotate-180'
-                    )} />
-                  )}
-                </Link>
+                  <Link
+                    href={category.href}
+                    className="flex items-center gap-1.5 py-2 text-sm font-semibold tracking-wider text-gray-200 hover:text-gold-400 transition-colors uppercase"
+                  >
+                    {category.label}
+                    {category.subcategories.length > 0 && (
+                      <ChevronDown className={cn(
+                        "w-3.5 h-3.5 transition-transform duration-300",
+                        activeMenu === category.label ? "rotate-180 text-gold-400" : "text-gray-500 group-hover:text-gold-400"
+                      )} />
+                    )}
+                  </Link>
 
-                {/* Mega Menu */}
-                {cat.subcategories.length > 0 && (
+                  {/* Mega Menu Dropdown */}
                   <AnimatePresence>
-                    {activeMenu === cat.label && (
+                    {activeMenu === category.label && category.subcategories.length > 0 && (
                       <motion.div
-                        initial={{ opacity: 0, y: 8 }}
+                        initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 8 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute top-full left-0 mt-1 w-52 bg-white rounded-xl shadow-card-hover border border-gray-100 py-2 z-50"
+                        exit={{ opacity: 0, y: 15 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute top-full left-1/2 -translate-x-1/2 pt-6 w-[280px]"
                       >
-                        <Link
-                          href={cat.href}
-                          className="block px-4 py-2 text-xs font-semibold text-gold-500 uppercase tracking-wider border-b border-gray-100 mb-1"
-                        >
-                          View All {cat.label}
-                        </Link>
-                        {cat.subcategories.map(sub => (
-                          <Link
-                            key={sub.href}
-                            href={sub.href}
-                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gold-50 hover:text-gold-600 transition-colors"
-                          >
-                            {sub.label}
-                          </Link>
-                        ))}
+                        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden relative">
+                          <div className="absolute inset-0 bg-gradient-to-br from-gold-50/50 to-transparent pointer-events-none" />
+                          <div className="relative p-3">
+                            {category.subcategories.map((sub) => (
+                              <Link
+                                key={sub.label}
+                                href={sub.href}
+                                className="block px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-brand-black hover:bg-gold-50 rounded-xl transition-all"
+                                onClick={() => setActiveMenu(null)}
+                              >
+                                {sub.label}
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
-                )}
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
           </nav>
 
-          {/* Action Icons */}
-          <div className="flex items-center gap-1 lg:gap-2">
+          {/* Right Icons */}
+          <div className="flex items-center justify-end gap-1 sm:gap-3 lg:w-[200px]">
             <Link
               href="/search"
-              className="p-2 text-gray-300 hover:text-gold-400 transition-colors"
+              className="p-2 text-gray-300 hover:text-gold-400 transition-colors hidden sm:block"
               aria-label="Search"
             >
               <Search className="w-5 h-5" />
@@ -193,7 +191,7 @@ export default function Header() {
 
             <Link
               href="/wishlist"
-              className="p-2 text-gray-300 hover:text-gold-400 transition-colors"
+              className="p-2 text-gray-300 hover:text-gold-400 transition-colors hidden sm:block"
               aria-label="Wishlist"
             >
               <Heart className="w-5 h-5" />
@@ -214,7 +212,7 @@ export default function Header() {
               id="cart-button"
             >
               <ShoppingBag className="w-5 h-5" />
-              {itemCount > 0 && (
+              {(mounted && itemCount > 0) && (
                 <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}

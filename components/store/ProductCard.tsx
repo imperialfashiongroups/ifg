@@ -18,7 +18,7 @@ export default function ProductCard({ product, className }: ProductCardProps) {
   const { addItem } = useCartStore();
   const { isWishlisted, toggleItem } = useWishlistStore();
 
-  const primaryImage = product.images?.find(i => i.is_primary) || product.images?.[0];
+  const primaryImage = product.product_images?.find(i => i.is_primary) || product.product_images?.[0];
   const imageUrl = primaryImage?.url || '/placeholder/product.jpg';
   const effectivePrice = getEffectivePrice(product.mrp, product.discount_pct);
   const discountPct = formatDiscount(product.mrp, effectivePrice);
@@ -101,9 +101,9 @@ export default function ProductCard({ product, className }: ProductCardProps) {
 
       {/* Product Info */}
       <div className="p-3">
-        {product.category && (
+        {product.categories && (
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1 truncate">
-            {product.category.name}
+            {product.categories.name}
           </p>
         )}
         <h3 className="text-sm font-semibold text-brand-black line-clamp-2 leading-tight mb-2">

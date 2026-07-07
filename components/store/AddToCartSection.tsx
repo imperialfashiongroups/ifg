@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ShoppingBag, Heart, Share2, Check } from 'lucide-react';
 import { useCartStore } from '@/lib/store/cart';
@@ -19,6 +19,11 @@ export default function AddToCartSection({ product, colors, sizes }: AddToCartSe
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { addItem, openCart } = { ...useCartStore(), ...useUIStore() };
   const { toggleItem, isWishlisted } = useWishlistStore();
@@ -27,11 +32,11 @@ export default function AddToCartSection({ product, colors, sizes }: AddToCartSe
   const effectivePrice = getEffectivePrice(product.mrp, product.discount_pct);
 
   // Find selected variant
-  const selectedVariant = product.variants.find(
+  const selectedVariant = product.product_variants?.find(
     (v: any) => v.color === selectedColor && v.size === selectedSize
   );
   const inStock = selectedVariant ? selectedVariant.stock_qty > 0 : true;
-  const wishlisted = isWishlisted(product.id);
+  const wishlisted = mounted ? isWishlisted(product.id) : false;
 
   const handleAddToCart = () => {
     if (!selectedSize) {
@@ -45,7 +50,7 @@ export default function AddToCartSection({ product, colors, sizes }: AddToCartSe
       variant_id: selectedVariant?.id,
       name: product.name,
       variant_name: `${selectedColor} / ${selectedSize}`,
-      image_url: product.images?.[0]?.url || '/placeholder/product.jpg',
+      image_url: product.product_images?.[0]?.url || '/placeholder/product.jpg',
       price: effectivePrice,
       mrp: product.mrp,
       gst_rate: product.gst_rate,
@@ -70,14 +75,14 @@ export default function AddToCartSection({ product, colors, sizes }: AddToCartSe
   return (
     <div className="space-y-5">
       {/* Color Selection */}
-      {colors.length > 0 && (
+      {(colors.length > 1 || (colors.length === 1 && colors[0] !== 'Default')) && (
         <div>
           <p className="text-sm font-medium text-brand-black mb-2.5">
             Colour: <span className="text-gray-600">{selectedColor}</span>
           </p>
           <div className="flex flex-wrap gap-2.5">
             {colors.map((color: string) => {
-              const variant = product.variants.find((v: any) => v.color === color);
+              const variant = product.product_variants?.find((v: any) => v.color === color);
               const hex = variant?.color_hex || '#888';
               return (
                 <button
@@ -106,7 +111,7 @@ export default function AddToCartSection({ product, colors, sizes }: AddToCartSe
           </p>
           <div className="flex flex-wrap gap-2">
             {sizes.map((size: string) => {
-              const variant = product.variants.find(
+              const variant = product.product_variants?.find(
                 (v: any) => v.size === size && v.color === selectedColor
               );
               const outOfStock = variant && variant.stock_qty === 0;

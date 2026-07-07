@@ -1,31 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search as SearchIcon, Sparkles, ArrowRight } from 'lucide-react';
-
-const ALL_PRODUCTS = [
-  { id: '1',  name: 'Embroidered Lehenga Choli', category: 'Women Ethnic',  price: 2999, mrp: 3999, discount: 25, slug: 'embroidered-lehenga-choli' },
-  { id: '2',  name: "Men's Premium Suit",        category: 'Men',           price: 4674, mrp: 5499, discount: 15, slug: 'mens-premium-suit' },
-  { id: '3',  name: 'Floral Anarkali Kurti Set', category: 'Women Ethnic',  price: 909,  mrp: 1299, discount: 30, slug: 'floral-kurti-set' },
-  { id: '4',  name: 'Kids Party Wear Frock',     category: 'Kids',          price: 799,  mrp: 999,  discount: 20, slug: 'kids-frock-party-wear' },
-  { id: '5',  name: 'Designer Silk Saree',       category: 'Women Ethnic',  price: 4499, mrp: 4999, discount: 10, slug: 'designer-silk-saree' },
-  { id: '6',  name: 'Casual Linen Shirt',        category: 'Men',           price: 1199, mrp: 1499, discount: 20, slug: 'casual-linen-shirt' },
-  { id: '7',  name: 'Palazzo Kurta Set',         category: 'Women Ethnic',  price: 1169, mrp: 1799, discount: 35, slug: 'palazzo-set' },
-  { id: '8',  name: 'Kids Denim Jeans',          category: 'Kids',          price: 679,  mrp: 799,  discount: 15, slug: 'kids-denim-jeans' },
-  { id: '9',  name: 'Printed Kurti',             category: 'Women Ethnic',  price: 599,  mrp: 899,  discount: 33, slug: 'printed-kurti' },
-  { id: '10', name: 'Running Sports Shoes',      category: 'Footwear',      price: 1599, mrp: 2199, discount: 27, slug: 'running-sports-shoes' },
-  { id: '11', name: 'Silk Dupatta',              category: 'Accessories',   price: 499,  mrp: 699,  discount: 28, slug: 'silk-dupatta' },
-  { id: '12', name: 'Formal Trouser Pants',      category: 'Men',           price: 1299, mrp: 1699, discount: 23, slug: 'formal-trouser-pants' },
-];
+import { Search as SearchIcon, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { getEffectivePrice } from '@/lib/utils';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
+  const [filtered, setFiltered] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const supabase = createClient();
 
-  const filtered = query.trim() === '' ? [] : ALL_PRODUCTS.filter(p => 
-    p.name.toLowerCase().includes(query.toLowerCase()) ||
-    p.category.toLowerCase().includes(query.toLowerCase())
-  );
+  useEffect(() => {
+    if (!query.trim()) {
+      setFiltered([]);
+      setLoading(false);
+      return;
+    }
+    
+    const timeout = setTimeout(async () => {
+      setLoading(true);
+      
+      // Perform case-insensitive search across name and description
+      const { data } = await supabase
+        .from('products')
+        .select('*, categories(name), product_images(url)')
+        .or(`name.ilike.%${query}%,description.ilike.%${query}%`)
+        .eq('is_active', true)
+        .limit(24);
+      
+      setFiltered(data || []);
+      setLoading(false);
+    }, 400); // 400ms debounce
+    
+    return () => clearTimeout(timeout);
+  }, [query, supabase]);
 
   return (
     <div className="min-h-screen bg-off-white py-12">
@@ -69,11 +79,14 @@ export default function SearchPage() {
           </div>
         ) : (
           <div>
-            <p className="text-sm text-gray-600 mb-6">
-              Found <strong className="text-brand-black">{filtered.length}</strong> results for &quot;<span className="text-gold-600 font-semibold">{query}</span>&quot;
-            </p>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-sm text-gray-600">
+                Found <strong className="text-brand-black">{filtered.length}</strong> results for &quot;<span className="text-gold-600 font-semibold">{query}</span>&quot;
+              </p>
+              {loading && <Loader2 className="w-5 h-5 text-gold-500 animate-spin" />}
+            </div>
 
-            {filtered.length === 0 ? (
+            {!loading && filtered.length === 0 ? (
               <div className="text-center py-16 bg-white rounded-3xl border border-gray-100 shadow-card">
                 <SearchIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <h3 className="font-serif text-xl font-bold text-gray-800 mb-1">No matches found</h3>
@@ -84,22 +97,44 @@ export default function SearchPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-                {filtered.map(p => (
-                  <Link key={p.id} href={`/products/${p.slug}`} className="product-card group">
-                    <div className="aspect-[3/4] bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden flex flex-col items-center justify-center p-4">
-                      <Sparkles className="w-12 h-12 text-gold-400/80 group-hover:scale-110 transition-transform mb-2" />
-                      <span className="text-xs text-gray-400">View Product</span>
-                    </div>
-                    <div className="p-4">
-                      <p className="text-[10px] text-gray-400 uppercase font-semibold mb-1">{p.category}</p>
-                      <h3 className="text-sm font-semibold text-brand-black line-clamp-1 group-hover:text-gold-600 transition-colors">{p.name}</h3>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="font-bold text-brand-black">₹{p.price.toLocaleString('en-IN')}</span>
-                        <span className="text-xs text-gray-400 line-through">₹{p.mrp.toLocaleString('en-IN')}</span>
+                {filtered.map(p => {
+                  const price = getEffectivePrice(p.mrp, p.discount_pct);
+                  const primaryImage = p.product_images?.[0]?.url || '';
+                  
+                  return (
+                    <Link key={p.id} href={`/products/${p.slug}`} className="bg-white rounded-2xl border border-gray-100 shadow-card overflow-hidden flex flex-col justify-between group">
+                      <div>
+                        <div className="aspect-[4/5] bg-gray-100 relative overflow-hidden flex flex-col items-center justify-center p-4 block">
+                          {primaryImage ? (
+                             <img src={primaryImage} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          ) : (
+                             <>
+                               <Sparkles className="w-14 h-14 text-gold-400/80 group-hover:scale-110 transition-transform mb-2" />
+                               <span className="text-xs text-gray-400 font-medium">No Image</span>
+                             </>
+                          )}
+                          {p.discount_pct && p.discount_pct > 0 ? (
+                            <span className="absolute top-3 left-3 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                              {p.discount_pct}% OFF
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="p-4">
+                          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">
+                            {p.categories?.name || 'Uncategorized'}
+                          </p>
+                          <h3 className="text-sm font-semibold text-brand-black line-clamp-1 group-hover:text-gold-600 transition-colors">{p.name}</h3>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="font-bold text-brand-black text-base">₹{price.toLocaleString('en-IN')}</span>
+                            {p.discount_pct && p.discount_pct > 0 && (
+                               <span className="text-xs text-gray-400 line-through">₹{p.mrp?.toLocaleString('en-IN')}</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>

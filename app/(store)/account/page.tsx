@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
@@ -10,9 +10,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { formatINR, getOrderStatusInfo, formatDate } from '@/lib/utils';
 
-// Mock data — will come from Supabase
-const MOCK_PROFILE = { full_name: 'Demo User', email: 'demo@example.com', phone: '9876543210', created_at: '2024-01-15' };
-const MOCK_ORDERS = [
+const FALLBACK_ORDERS = [
   { id: '1', order_number: 'IFG-A1B2C3D4', total_amount: 2999, status: 'delivered',  created_at: '2025-06-20', items: [{ product_name: 'Embroidered Lehenga Choli', quantity: 1 }] },
   { id: '2', order_number: 'IFG-E5F6G7H8', total_amount: 1299, status: 'shipped',    created_at: '2025-06-28', items: [{ product_name: 'Floral Kurti Set', quantity: 2 }] },
   { id: '3', order_number: 'IFG-I9J0K1L2', total_amount: 5499, status: 'processing', created_at: '2025-07-01', items: [{ product_name: "Men's Premium Suit", quantity: 1 }] },
@@ -22,7 +20,49 @@ type AccountTab = 'overview' | 'orders' | 'addresses' | 'profile' | 'returns';
 
 export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<AccountTab>('overview');
+  const [MOCK_PROFILE, setProfile] = useState<any>({ full_name: 'Loading...', email: '', phone: '', created_at: new Date().toISOString() });
+  const [MOCK_ORDERS, setOrders] = useState<any[]>(FALLBACK_ORDERS);
   const supabase = createClient();
+
+  useEffect(() => {
+    async function loadUserData() {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        window.location.href = '/login';
+        return;
+      }
+
+      // Fetch profile independently so orders errors don't block it
+      const { data: prof, error: profError } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone, avatar_url, is_admin, created_at')
+        .eq('id', user.id)
+        .single();
+
+      if (profError) console.error('[AccountPage] profile fetch error:', profError);
+
+      setProfile({
+        full_name: prof?.full_name || user.user_metadata?.full_name || 'Valued Member',
+        email:     user.email || '',
+        phone:     prof?.phone || user.user_metadata?.phone || '',
+        created_at: prof?.created_at || user.created_at || new Date().toISOString(),
+        is_admin:  prof?.is_admin === true, // explicit boolean — never rely on truthiness
+      });
+
+      // Fetch orders separately — failure here won't affect profile display
+      const { data: ords, error: ordsError } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (ordsError) console.error('[AccountPage] orders fetch error:', ordsError);
+      if (ords && ords.length > 0) setOrders(ords);
+    }
+    loadUserData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -42,15 +82,32 @@ export default function AccountPage() {
       {/* Header */}
       <div className="bg-brand-black py-10">
         <div className="section">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gold-gradient flex items-center justify-center text-2xl font-bold text-brand-black shadow-gold">
-              {MOCK_PROFILE.full_name[0]}
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-gold-gradient flex items-center justify-center text-2xl font-bold text-brand-black shadow-gold">
+                {MOCK_PROFILE.full_name[0]}
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="font-serif text-2xl font-bold text-white">{MOCK_PROFILE.full_name}</h1>
+                  {MOCK_PROFILE.is_admin && (
+                    <span className="px-2.5 py-0.5 text-xs font-bold bg-gold-400 text-brand-black rounded-full uppercase tracking-wider shadow-sm">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-400 text-sm">{MOCK_PROFILE.email}</p>
+                <p className="text-gray-500 text-xs mt-1">Member since {new Date(MOCK_PROFILE.created_at).getFullYear()}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-serif text-2xl font-bold text-white">{MOCK_PROFILE.full_name}</h1>
-              <p className="text-gray-400 text-sm">{MOCK_PROFILE.email}</p>
-              <p className="text-gray-500 text-xs mt-1">Member since {new Date(MOCK_PROFILE.created_at).getFullYear()}</p>
-            </div>
+            {MOCK_PROFILE.is_admin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gold-gradient text-brand-black font-bold text-sm shadow-gold hover:opacity-95 transition-all"
+              >
+                👑 Open Admin Panel <ChevronRight className="w-4 h-4" />
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -60,6 +117,16 @@ export default function AccountPage() {
           {/* Sidebar */}
           <aside className="lg:w-64 shrink-0">
             <nav className="bg-white rounded-2xl shadow-card overflow-hidden">
+              {MOCK_PROFILE.is_admin && (
+                <Link
+                  href="/admin"
+                  className="w-full flex items-center justify-between gap-3 px-5 py-4 text-sm font-bold bg-gold-gradient text-brand-black shadow-gold transition-all hover:opacity-95 border-b border-gold-400"
+                  id="goto-admin-btn"
+                >
+                  <span className="flex items-center gap-2">👑 Admin Dashboard</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              )}
               {TABS.map(tab => {
                 const Icon = tab.icon;
                 return (
@@ -172,7 +239,7 @@ export default function AccountPage() {
                           </div>
                         </div>
                         <div className="text-sm text-gray-600 mb-4">
-                          {order.items.map((item, i) => (
+                          {order.items.map((item: any, i: number) => (
                             <p key={i}>{item.quantity}× {item.product_name}</p>
                           ))}
                         </div>
